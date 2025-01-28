@@ -7,8 +7,6 @@ import sys
 import argparse
 from torch.serialization import add_safe_globals
 
-# Allow the Net class to be safely loaded
-add_safe_globals([Net])
 
 class Net(nn.Module):
     def __init__(self):
@@ -35,6 +33,8 @@ class Net(nn.Module):
         output = F.log_softmax(x, dim=1)
         return output
 
+# Allow the Net class to be safely loaded
+add_safe_globals([Net])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
