@@ -14,7 +14,7 @@ if [ ! -d "$HOST_IMAGES_DIR" ] || [ -z "$(ls -A "$HOST_IMAGES_DIR")" ]; then
 fi
 
 # Randomly choose an image from the images directory
-RANDOM_IMAGE=$(find "$HOST_IMAGES_DIR" -type f | gshuf -n 1)
+RANDOM_IMAGE=$(find "$HOST_IMAGES_DIR" -type f | shuf -n 1)
 
 if [ -z "$RANDOM_IMAGE" ]; then
     echo "Error: No image was selected. Check the images directory."
