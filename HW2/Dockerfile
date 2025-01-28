@@ -1,5 +1,5 @@
 # Use the specified ARM64 base image with Python 3.9 slim bullseye
-FROM --platform=linux/arm64 python:3.9-slim-bullseye
+FROM python:3
 
 WORKDIR /HW2
 
