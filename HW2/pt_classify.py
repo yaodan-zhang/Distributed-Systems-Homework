@@ -44,8 +44,15 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print('Loading model from:', args.model_path)
-    model = torch.load( args.model_path)
-    
+    # Initialize the model architecture
+    model = Net()
+
+    # Load the state dictionary into the model
+    model.load_state_dict(torch.load(args.model_path))
+
+    # Set the model to evaluation mode
+    model.eval()
+
     print('Loading image from:', args.input)
 
     device = torch.device("cpu") 
