@@ -30,7 +30,7 @@ docker cp "$RANDOM_IMAGE" "$CONTAINER_NAME":"$CONTAINER_IMAGES_DIR/$IMAGE_FILENA
 
 # Run the classification script inside the container
 echo "Running classification for $IMAGE_FILENAME..."
-docker exec "$CONTAINER_NAME" python3 pt_classify.py --input "$CONTAINER_IMAGES_DIR/$IMAGE_FILENAME"
+docker exec "$CONTAINER_NAME" python3 pt_classify.py --input "$CONTAINER_IMAGES_DIR/$IMAGE_FILENAME" --model-path mnist_cnn.pt
 
 # Output the expected and predicted classification
 echo "Classification complete for $IMAGE_FILENAME."
