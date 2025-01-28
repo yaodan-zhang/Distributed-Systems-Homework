@@ -5,6 +5,10 @@ import torch.optim as optim
 from torchvision.io import read_image
 import sys
 import argparse
+from torch.serialization import add_safe_globals
+
+# Allow the Net class to be safely loaded
+add_safe_globals([Net])
 
 class Net(nn.Module):
     def __init__(self):
