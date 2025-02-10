@@ -1,60 +1,51 @@
-import sys
 import itertools
 import string
 import hashlib
+import json
+import sys
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-def bruteforce_password(hashed_password, max_length, chars=string.ascii_lowercase):
-    """
-    Attempt to brute force the password by checking all combinations of
-    the provided characters up to max_length.
-    """
+# Cache to store previously cracked passwords
+cache = {}
+
+def bruteforce_partial(hashed_password, charset, max_length):
+    """Attempts to brute-force the password within a given character subset."""
+    if hashed_password in cache:
+        return cache[hashed_password]
+
     for password_length in range(1, max_length + 1):
-        print(f"Trying passwords of length: {password_length}")
-        for guess_tuple in itertools.product(chars, repeat=password_length):
-            guess = ''.join(guess_tuple)
+        for guess in itertools.product(charset, repeat=password_length):
+            guess = ''.join(guess)
             if hashlib.md5(guess.encode()).hexdigest() == hashed_password:
+                cache[hashed_password] = guess
                 return guess
     return None
 
 @app.route('/crack', methods=['POST'])
-def crack():
-    """
-    Expects JSON input with keys:
-      - 'hash': the MD5 hash string to crack
-      - 'max_length': the maximum password length to search
-    Returns a JSON response with either the cracked password or an error message.
-    """
+def crack_password():
+    """API endpoint to brute force crack an MD5 hashed password with a given charset range."""
     data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No input provided.'}), 400
+    
+    if (not data) or ('hash' not in data) or ('charset' not in data) or ('max_length' not in data):
+        return jsonify({'error': 'Invalid input'}), 400
 
-    hashed_password = data.get('hash')
-    max_length = data.get('max_length')
+    hashed_password = data['hash']
+    charset = data['charset']
+    max_length = int(data['max_length'])
 
-    if (not hashed_password) or (not max_length):
-        return jsonify({'error': 'Missing parameters. Provide both "hash" and "max_length".'}), 400
+    password = bruteforce_partial(hashed_password, charset, max_length)
 
-    try:
-        max_length = int(max_length)
-    except ValueError:
-        return jsonify({'error': '"max_length" must be an integer.'}), 400
-
-    result = bruteforce_password(hashed_password, max_length)
-    if result:
-        return jsonify({'result': result})
+    if password:
+        return jsonify({'password': password})
     else:
-        return jsonify({
-            'result': None,
-            'message': 'Password not found within the given constraints.'
-        }), 200
+        return jsonify({'error': 'Password not found'}), 404
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print("Usage: python cracker_service.py <port>")
-        sys.exit(1)
-    port = int(sys.argv[1])
-    # Run on all available network interfaces so other machines can connect if needed.
+    try:
+        port = int(sys.argv[1])
+    except (IndexError, ValueError):
+        port = 5000
+
     app.run(host='0.0.0.0', port=port)
