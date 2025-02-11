@@ -29,10 +29,16 @@ def distribute_work(start_port, end_port, md5_hash, max_length):
     found_password = None
     lock = threading.Lock()
 
-    def query_service():
+    def query_service(i):
         """Thread function to query a service instance and handle failures."""
         nonlocal found_password
-        while not task_queue.empty():
+        while True:
+            if found_password:
+                return
+            
+            if task_queue.empty():
+                continue
+
             port, length_subset = task_queue.get()
             if found_password:
                 return  # Stop if password is found
@@ -40,26 +46,28 @@ def distribute_work(start_port, end_port, md5_hash, max_length):
             payload = {
                 "hash": md5_hash,
                 "charset": charset,  # Send full charset
-                "max_length": max(length_subset)
+                "max_length": length_subset[-1],
             }
 
             try:
-                response = requests.post(f"http://localhost:{port}/crack", json=payload, timeout=10)
+                response = requests.post(f"http://localhost:{port}/crack", json=payload, timeout=300)
                 if response.status_code == 200 and "password" in response.json():
                     with lock:
                         found_password = response.json()["password"]
                         print(f"✅ Password found: {found_password} (from port {port})")
-            except requests.exceptions.RequestException:
+            except requests.exceptions.RequestException as e:
                 print(f"❌ Server {port} failed! Reassigning its work...")
+                print(f"Error occurred: {e}")
                 # Redistribute failed workload to other servers
                 for backup_port in ports:
                     if backup_port != port:
                         task_queue.put((backup_port, length_subset))  # Reassign failed task
+                        return
 
     # Start a thread for each server
     threads = []
-    for _ in ports:
-        thread = threading.Thread(target=query_service)
+    for k in range(num_servers):
+        thread = threading.Thread(target=query_service,args=(k,))
         threads.append(thread)
         thread.start()
 
@@ -72,7 +80,7 @@ def distribute_work(start_port, end_port, md5_hash, max_length):
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
-        print("Usage: python client.py <start-port> <end-port> <md5_password> <max_password_length>")
+        print("Usage: python3 client.py <start-port> <end-port> <md5_password> <max_password_length>")
         sys.exit(1)
 
     start_port = int(sys.argv[1])

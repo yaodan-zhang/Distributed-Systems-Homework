@@ -1,0 +1,11 @@
+
+PASSWORD_HASH="e8b732a9b15300558e00006be047706f"       cachie
+MAX_LENGTH=6
+
+NUM_SERVERS, ELAPSED_TIME
+1, 41
+2, 35
+3, 40
+4, 44
+
+For password MAX_LENGTH, 7 didn't resolve in 5 min and time out.

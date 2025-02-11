@@ -7,19 +7,13 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# Cache to store previously cracked passwords
-cache = {}
 
 def bruteforce_partial(hashed_password, charset, max_length):
     """Attempts to brute-force the password within a given character subset."""
-    if hashed_password in cache:
-        return cache[hashed_password]
-
     for password_length in range(1, max_length + 1):
         for guess in itertools.product(charset, repeat=password_length):
             guess = ''.join(guess)
             if hashlib.md5(guess.encode()).hexdigest() == hashed_password:
-                cache[hashed_password] = guess
                 return guess
     return None
 
@@ -40,7 +34,7 @@ def crack_password():
     if password:
         return jsonify({'password': password})
     else:
-        return jsonify({'error': 'Password not found'}), 404
+        return jsonify({'Warning': 'Password not found'})
 
 if __name__ == '__main__':
     try:
