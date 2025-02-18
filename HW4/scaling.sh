@@ -12,7 +12,7 @@ for NUM_SERVERS in $NUM_SERVERS_LIST; do
   # 1) Start servers on ports [5000..(5000+NUM_SERVERS-1)]
   for ((i=0; i<$NUM_SERVERS; i++))
   do
-    PORT=$((5000 + i))
+    PORT=$((6000 + i))
     python3 cracker_service.py $PORT &
     PIDS[$i]=$!
   done
@@ -23,7 +23,7 @@ for NUM_SERVERS in $NUM_SERVERS_LIST; do
   START=$(date +%s)
   
   # 3) Run client
-  python3 client.py 5000 $((4999 + NUM_SERVERS)) $PASSWORD_HASH $MAX_LENGTH
+  python3 client.py 6000 $((5999 + NUM_SERVERS)) $PASSWORD_HASH $MAX_LENGTH
   
   # 4) Capture end time
   END=$(date +%s)

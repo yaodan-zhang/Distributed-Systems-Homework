@@ -59,7 +59,7 @@ def distribute_work(start_port, end_port, md5_hash, max_length):
             }
 
             try:
-                response = requests.post(f"http://localhost:{port}/crack", json=payload, timeout=300)
+                response = requests.post(f"http://localhost:{port}/crack", json=payload, timeout=3600)
                 if response.status_code == 200 and "password" in response.json():
                     with lock:
                         found_password = response.json()["password"]
