@@ -12,7 +12,7 @@ def distribute_work(start_port, end_port, md5_hash, max_length):
     charset = string.ascii_lowercase
     num_servers = len(ports)
 
-    chunks = [[]*num_servers]
+    chunks = []
     
     # Divide workload
     for l in range(1, max_length + 1):
@@ -24,8 +24,12 @@ def distribute_work(start_port, end_port, md5_hash, max_length):
 
         current_chunks[-1] += full_guess_space[num_servers * chunk_length :]
 
-        for i in range(num_servers):
-            chunks[i] += current_chunks[i]
+        if not chunks:
+            chunks = current_chunks
+
+        else:
+            for i in range(num_servers):
+                chunks[i] += current_chunks[i]
 
     # Queue for fault tolerance (redistributes failed tasks)
     task_queue = queue.Queue()
@@ -64,7 +68,7 @@ def distribute_work(start_port, end_port, md5_hash, max_length):
             except requests.exceptions.RequestException as e:
                 print(f"❌ Server {port} failed! Reassigning its work...")
                 print(f"Error occurred: {e}")
-                
+
                 # Redistribute failed workload to other servers
                 for backup_port in ports:
                     if backup_port != port:
