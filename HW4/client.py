@@ -4,22 +4,28 @@ import string
 import json
 import threading
 import queue
+import itertools
 
 def distribute_work(start_port, end_port, md5_hash, max_length):
     """Distributes password cracking work across multiple service instances by dividing length, not characters."""
     ports = list(range(start_port, end_port + 1))
-    charset = string.ascii_lowercase  # All servers get full character set
-
-    # Divide workload by password length
-    length_chunks = list(range(1, max_length + 1))
+    charset = string.ascii_lowercase
     num_servers = len(ports)
-    chunk_size = len(length_chunks) // num_servers
 
-    # Distribute lengths evenly
-    chunks = [length_chunks[i * chunk_size: (i + 1) * chunk_size] for i in range(num_servers)]
+    chunks = [[]*num_servers]
     
-    if len(length_chunks) % num_servers != 0:
-        chunks[-1] += length_chunks[num_servers * chunk_size:]
+    # Divide workload
+    for l in range(1, max_length + 1):
+        full_guess_space = list(itertools.product(charset, repeat=l))
+        
+        chunk_length = len(full_guess_space)//num_servers
+
+        current_chunks = [full_guess_space[i*chunk_length:(i+1)*chunk_length] for i in range(num_servers)]
+
+        current_chunks[-1] += full_guess_space[num_servers * chunk_length :]
+
+        for i in range(num_servers):
+            chunks[i] += current_chunks[i]
 
     # Queue for fault tolerance (redistributes failed tasks)
     task_queue = queue.Queue()
@@ -39,14 +45,13 @@ def distribute_work(start_port, end_port, md5_hash, max_length):
             if task_queue.empty():
                 continue
 
-            port, length_subset = task_queue.get()
+            port, guess_space = task_queue.get()
             if found_password:
                 return  # Stop if password is found
 
             payload = {
                 "hash": md5_hash,
-                "charset": charset,  # Send full charset
-                "max_length": length_subset[-1],
+                "guess_space": guess_space,
             }
 
             try:
@@ -55,13 +60,15 @@ def distribute_work(start_port, end_port, md5_hash, max_length):
                     with lock:
                         found_password = response.json()["password"]
                         print(f"✅ Password found: {found_password} (from port {port})")
+
             except requests.exceptions.RequestException as e:
                 print(f"❌ Server {port} failed! Reassigning its work...")
                 print(f"Error occurred: {e}")
+                
                 # Redistribute failed workload to other servers
                 for backup_port in ports:
                     if backup_port != port:
-                        task_queue.put((backup_port, length_subset))  # Reassign failed task
+                        task_queue.put((backup_port, guess_space))  # Reassign failed task
                         return
 
     # Start a thread for each server
