@@ -1,8 +1,8 @@
 #!/bin/bash
 
-PASSWORD_HASH="684484958e240db822eb842634ca82b5"    
-MAX_LENGTH=6             
-NUM_SERVERS_LIST="1 2 3 4"
+PASSWORD_HASH="0d5418948b089378f36adf01b038b40b"    
+MAX_LENGTH=5             
+NUM_SERVERS_LIST="10 100 200 300"
 
 echo "NUM_SERVERS, ELAPSED" >> results.csv
 
@@ -12,7 +12,7 @@ for NUM_SERVERS in $NUM_SERVERS_LIST; do
   # 1) Start servers on ports [5000..(5000+NUM_SERVERS-1)]
   for ((i=0; i<$NUM_SERVERS; i++))
   do
-    PORT=$((6000 + i))
+    PORT=$((4000 + i))
     python3 cracker_service.py $PORT &
     PIDS[$i]=$!
   done
@@ -23,7 +23,7 @@ for NUM_SERVERS in $NUM_SERVERS_LIST; do
   START=$(date +%s)
   
   # 3) Run client
-  python3 client.py 6000 $((5999 + NUM_SERVERS)) $PASSWORD_HASH $MAX_LENGTH
+  python3 client.py 4000 $((3999 + NUM_SERVERS)) $PASSWORD_HASH $MAX_LENGTH
   
   # 4) Capture end time
   END=$(date +%s)
