@@ -186,11 +186,16 @@ def create_topic():
     # Send log to followers for replication
     for peer in raft_node.peers:
         try:
-            requests.post(f"{peer['ip']}:{peer['port']}/append_entries",
+            response = requests.post(f"{peer['ip']}:{peer['port']}/append_entries",
                           json={"term": raft_node.current_term, "leader_id": raft_node.node_index,
                                 "leader_address": raft_node.address, "log": raft_node.log,
                                 "commit_index": raft_node.commit_index},
                           timeout=1)
+            if response.status_code == 200:
+                print("create topic entry posted to ", peer)
+            else:
+                print("error posting create topic to ", peer)
+
         except requests.exceptions.RequestException:
             continue
     
@@ -212,11 +217,16 @@ def get_topics():
     # Send log to followers for replication
     for peer in raft_node.peers:
         try:
-            requests.post(f"{peer['ip']}:{peer['port']}/append_entries",
+            response = requests.post(f"{peer['ip']}:{peer['port']}/append_entries",
                           json={"term": raft_node.current_term, "leader_id": raft_node.node_index,
                                 "leader_address": raft_node.address, "log": raft_node.log,
                                 "commit_index": raft_node.commit_index},
                           timeout=1)
+            if response.status_code == 200:
+                print("get topics entry posted to ", peer)
+            else:
+                print("error posting get topics to ", peer)
+
         except requests.exceptions.RequestException:
             continue
 
@@ -272,11 +282,16 @@ def get_message(topic):
     # Send log to followers for replication
     for peer in raft_node.peers:
         try:
-            requests.post(f"{peer['ip']}:{peer['port']}/append_entries",
+            response = requests.post(f"{peer['ip']}:{peer['port']}/append_entries",
                           json={"term": raft_node.current_term, "leader_id": raft_node.node_index,
                                 "leader_address": raft_node.address, "log": raft_node.log,
                                 "commit_index": raft_node.commit_index},
                           timeout=1)
+            if response.status_code == 200:
+                print("get message entry posted to ", peer)
+            else:
+                print("error posting get message to ", peer)
+
         except requests.exceptions.RequestException:
             continue
     

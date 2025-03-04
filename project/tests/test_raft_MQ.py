@@ -148,4 +148,4 @@ for node in NODES:
     except requests.exceptions.RequestException:
         print(f"Node {node} is unreachable.")
 
-print("=== All tests completed! =
+print("=== All tests completed! ===")
