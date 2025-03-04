@@ -50,7 +50,9 @@ class RaftNode:
         self.log = []  # Raft log for replication
         self.commit_index = -1  # Index of the last committed log entry
         self.last_applied = -1  # Last applied log index
-        self.start_election_timer()
+
+        threading.Thread(target=self.start_election_timer, daemon=True).start()
+
 
     def start_election_timer(self):
         while True:
@@ -73,11 +75,11 @@ class RaftNode:
         self.last_heartbeat = time.time()
         print(f"Node {self.node_index} starting election for term {self.current_term}")
         votes = 1
-        print(self.peers)
+        #print(self.peers)
         for peer in self.peers:
-            print(peer)
+            #print(peer)
             try:
-                print(peer, 'inside line 80')
+                #print(peer, 'inside line 80')
                 response = requests.post(f"{peer['ip']}:{peer['port']}/request_vote",
                                         json={"term": self.current_term, "candidate_id": self.node_index},
                                         timeout=5)
@@ -88,20 +90,26 @@ class RaftNode:
                         votes += 1
                         print(f"✅ Node {self.node_index} received vote from {peer}")
                 except requests.exceptions.RequestException as e:
+                    #continue
                     print(f"❌ Invalid JSON response from {peer}, skipping.", e)
                 
             except requests.exceptions.RequestException as e:
+                #continue
                 print(f"❌ Node {self.node_index} failed to contact {peer} for vote.", e)
 
+        print(votes, len(self.peers) // 2)
         if votes > len(self.peers) // 2:
+            print('inside if')
             self.become_leader()
 
     def become_leader(self):
-        with self.lock:
-            self.state = LEADER
-            self.leader_address = self.address
-            print(f"Node {self.node_index} is now the leader for term {self.current_term}")
-            threading.Thread(target=self.send_heartbeats, daemon=True).start()
+        print('inside become leader')
+        
+        print('become leader')
+        self.state = LEADER
+        self.leader_address = self.address
+        print(f"Node {self.node_index} is now the leader for term {self.current_term}")
+        threading.Thread(target=self.send_heartbeats, daemon=True).start()
     
     def send_heartbeats(self):
         while self.state == LEADER:
@@ -135,14 +143,24 @@ class RaftNode:
         while self.last_applied < self.commit_index:
             self.last_applied += 1
             entry = self.log[self.last_applied]
+
             if entry["operation"] == "create_topic":
-                message_queue.create_topic(entry['topic'])
+                response = message_queue.create_topic(entry['topic'])
+                if not response:
+                    print("Create topic error in node ", self.address)
+
             elif entry["operation"] == "add_message":
-                message_queue.add_message(entry['topic'], entry['message'])
+                response = message_queue.add_message(entry['topic'], entry['message'])
+                if not response:
+                    print("Add message error in node ", self.address)
+
             elif entry["operation"] == "get_topics":
                 pass  # No need to modify state for a read operation
+
             elif entry["operation"] == "get_message":
-                message_queue.pop_message(entry['topic'])
+                response, _ = message_queue.pop_message(entry['topic'])
+                if not response:
+                    print("Get message error in node ", self.address)
 
     def get_status(self):
         return {"role": self.state, "term": self.current_term, "leader": self.leader_address, "commit_index": self.commit_index, "last_applied": self.last_applied}
@@ -163,6 +181,7 @@ def create_topic():
     # Append to Raft log first
     entry = {"term": raft_node.current_term, "topic": data["topic"], "operation": "create_topic"}
     raft_node.log.append(entry)
+    raft_node.commit_index += 1
     
     # Send log to followers for replication
     for peer in raft_node.peers:
@@ -188,6 +207,7 @@ def get_topics():
     
     entry = {"term": raft_node.current_term, "operation": "get_topics"}
     raft_node.log.append(entry)
+    raft_node.commit_index += 1
 
     # Send log to followers for replication
     for peer in raft_node.peers:
@@ -213,18 +233,25 @@ def add_message():
         return jsonify({"success": False, "error": "Missing fields"}), 400
     
     # Append to Raft log first
-    entry = {"term": raft_node.current_term, "topic": data["topic"], "message": data["message"], 'operation':'get_message'}
+    entry = {"term": raft_node.current_term, "topic": data["topic"], "message": data["message"], 'operation':'add_message'}
     raft_node.log.append(entry)
+    raft_node.commit_index += 1
     
     # Send log to followers for replication
     for peer in raft_node.peers:
         try:
-            requests.post(f"{peer['ip']}:{peer['port']}/append_entries",
+            response = requests.post(f"{peer['ip']}:{peer['port']}/append_entries",
                           json={"term": raft_node.current_term, "leader_id": raft_node.node_index,
                                 "leader_address": raft_node.address, "log": raft_node.log,
                                 "commit_index": raft_node.commit_index},
                           timeout=1)
-        except requests.exceptions.RequestException:
+            if response.status_code == 200:
+                print("add message entry posted to ", peer)
+            else:
+                print("error posting add message to ", peer)
+
+        except requests.exceptions.RequestException as e:
+            print(peer, " is not accessible!")
             continue
     
     # Apply message after replication
@@ -240,6 +267,7 @@ def get_message(topic):
     
     entry = {"term": raft_node.current_term, "operation": "get_message", "topic": topic}
     raft_node.log.append(entry)
+    raft_node.commit_index += 1
 
     # Send log to followers for replication
     for peer in raft_node.peers:
@@ -261,7 +289,6 @@ def get_message(topic):
 @app.route('/status', methods=['GET'])
 def get_status():
     return jsonify(raft_node.get_status()), 200
-
 
 
 @app.route('/request_vote', methods=['POST'])
@@ -298,7 +325,7 @@ def append_entries():
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python3 src/node.py path_to_config index")
+        print("Usage: python src/node.py path_to_config index")
         sys.exit(1)
     
     config_path = sys.argv[1]
