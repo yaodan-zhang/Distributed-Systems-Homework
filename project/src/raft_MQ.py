@@ -43,7 +43,7 @@ class RaftNode:
         self.state = FOLLOWER
         self.current_term = 0
         self.voted_for = None
-        self.election_timeout = random.uniform(3, 5)
+        self.election_timeout = random.uniform(8, 25)
         self.last_heartbeat = time.time()
         self.lock = threading.Lock()
         self.leader_address = None
@@ -53,7 +53,11 @@ class RaftNode:
         self.start_election_timer()
 
     def start_election_timer(self):
-        threading.Thread(target=self.election_timer, daemon=True).start()
+        while True:
+            time.sleep(random.uniform(4, 7))  # Randomized timeout to prevent vote splitting
+            with self.lock:
+                if self.state != LEADER and (time.time() - self.last_heartbeat) > self.election_timeout:
+                    self.start_election()
 
     def election_timer(self):
         while True:
@@ -69,13 +73,26 @@ class RaftNode:
         self.last_heartbeat = time.time()
         print(f"Node {self.node_index} starting election for term {self.current_term}")
         votes = 1
+        print(self.peers)
         for peer in self.peers:
+            print(peer)
             try:
-                response = requests.post(f"{peer['ip']}:{peer['port']}/request_vote", json={"term": self.current_term, "candidate_id": self.node_index}, timeout=1)
-                if response.json().get("vote_granted"):
-                    votes += 1
-            except requests.exceptions.RequestException:
-                continue
+                print(peer, 'inside line 80')
+                response = requests.post(f"{peer['ip']}:{peer['port']}/request_vote",
+                                        json={"term": self.current_term, "candidate_id": self.node_index},
+                                        timeout=5)
+                
+                try:
+                    data = response.json()  # Check if the response is valid JSON
+                    if data.get("vote_granted"):
+                        votes += 1
+                        print(f"✅ Node {self.node_index} received vote from {peer}")
+                except requests.exceptions.RequestException as e:
+                    print(f"❌ Invalid JSON response from {peer}, skipping.", e)
+                
+            except requests.exceptions.RequestException as e:
+                print(f"❌ Node {self.node_index} failed to contact {peer} for vote.", e)
+
         if votes > len(self.peers) // 2:
             self.become_leader()
 
@@ -88,13 +105,21 @@ class RaftNode:
     
     def send_heartbeats(self):
         while self.state == LEADER:
+            print(f"❤️ Leader {self.node_index} sending heartbeats...")
             for peer in self.peers:
                 try:
-                    requests.post(f"{peer['ip']}:{peer['port']}/append_entries", json={"term": self.current_term, "leader_id": self.node_index, "leader_address": self.address, "log": self.log, "commit_index": self.commit_index}, timeout=1)
+                    response = requests.post(f"{peer['ip']}:{peer['port']}/append_entries",
+                                            json={"term": self.current_term, "leader_id": self.node_index,
+                                                "leader_address": self.address, "log": self.log,
+                                                "commit_index": self.commit_index},
+                                            timeout=5)
+                    if response.status_code == 200:
+                        print(f"✅ Heartbeat acknowledged by {peer}")
                 except requests.exceptions.RequestException:
-                    continue
-            time.sleep(1)
-    
+                    print(f"❌ Failed to send heartbeat to {peer}")
+
+            time.sleep(2)  # Adjust heartbeat frequency if needed
+
     def receive_heartbeat(self, leader_term, leader_address, log, commit_index):
         with self.lock:
             if leader_term >= self.current_term:
@@ -237,17 +262,28 @@ def get_message(topic):
 def get_status():
     return jsonify(raft_node.get_status()), 200
 
+
+
 @app.route('/request_vote', methods=['POST'])
 def request_vote():
     data = request.get_json()
     term = data.get("term")
     candidate_id = data.get("candidate_id")
+
     with raft_node.lock:
         if term > raft_node.current_term:
             raft_node.current_term = term
+            raft_node.voted_for = None
+            raft_node.state = FOLLOWER  # Reset to Follower if term is higher
+
+        if raft_node.voted_for is None or raft_node.voted_for == candidate_id:
             raft_node.voted_for = candidate_id
+            print(f"✅ Node {raft_node.node_index} voted for {candidate_id} in term {term}")
             return jsonify({"vote_granted": True}), 200
+
+    print(f"❌ Node {raft_node.node_index} rejected vote request from {candidate_id} in term {term}")
     return jsonify({"vote_granted": False}), 403
+
 
 @app.route('/append_entries', methods=['POST'])
 def append_entries():
